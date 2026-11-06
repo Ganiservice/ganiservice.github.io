@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Gani Service – Recharge de compte de jeu</title>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css"></head>
+<body><div class="wrap">
+<header><div class="logo">G</div><strong>Gani Service</strong></header>
+<main id="main">
+<h1>Recharge ton compte de jeu en quelques minutes</h1>
+<p class="sub">Choisis ta plateforme, indique ton montant, et on te confirme sur WhatsApp.</p>
+<form class="card" id="f" novalidate>
+<div class="lab">Plateforme</div>
+<div class="chips" id="plat">
+<label class="chip"><input type="radio" name="platform" value="1xbet" checked><span>1xbet</span></label>
+<label class="chip"><input type="radio" name="platform" value="Betwinner"><span>Betwinner</span></label>
+<label class="chip"><input type="radio" name="platform" value="Melbet"><span>Melbet</span></label>
+</div>
+<label for="pid">Identifiant de ton compte de jeu</label>
+<input id="pid" inputmode="numeric" autocomplete="off" placeholder="Ex : 123456789" required>
+<label for="amt">Montant (FCFA)</label>
+<input id="amt" type="number" inputmode="numeric" min="500" step="100" placeholder="Ex : 5000" required>
+<div class="chips" style="margin-top:8px" id="quick"></div>
+<label for="mth">Moyen de paiement</label>
+<select id="mth"><option>Orange Money</option><option>Moov Money</option><option>Coris Money</option></select>
+<label for="nm">Ton nom</label>
+<input id="nm" autocomplete="name" placeholder="Nom et prénom" required>
+<label for="ph">Ton numéro de téléphone</label>
+<input id="ph" type="tel" autocomplete="tel" placeholder="Ex : 70 00 00 00" required>
+<div class="err" id="err" role="alert"></div>
+<button class="main" id="go" type="submit">Commander sur WhatsApp</button>
+<p class="note">Montant minimum : 500 FCFA. Tu paies après confirmation sur WhatsApp.</p>
+</form></main>
+</div>
+<script type="module">
+import {firebaseConfig,WHATSAPP,configured} from './firebase-config.js';
+const $=id=>document.getElementById(id);
+let db,fs;
+if(configured){
+  try{
+    const B='https://www.gstatic.com/firebasejs/10.12.2/';
+    const {initializeApp}=await import(B+'firebase-app.js');
+    fs=await import(B+'firebase-firestore.js');
+    db=fs.getFirestore(initializeApp(firebaseConfig));
+  }catch(e){console.error(e)}
+}
+[1000,2000,5000,10000].forEach(v=>{
+  const b=document.createElement('button');b.type='button';b.className='chip';
+  b.innerHTML='<span></span>';b.firstChild.textContent=v.toLocaleString('fr-FR');
+  b.onclick=()=>{$('amt').value=v};$('quick').append(b);
+});
+$('f').addEventListener('submit',async e=>{
+  e.preventDefault();$('err').textContent='';
+  const platform=document.querySelector('[name=platform]:checked').value;
+  const playerId=$('pid').value.trim(),amount=Number($('amt').value),
+        method=$('mth').value,name=$('nm').value.trim(),phone=$('ph').value.replace(/\s/g,'');
+  if(!/^\d{5,15}$/.test(playerId))return $('err').textContent="Entre un identifiant de compte valide (chiffres uniquement).";
+  if(!(amount>=500&&amount<=500000))return $('err').textContent="Le montant doit être entre 500 et 500 000 FCFA.";
+  if(name.length<2)return $('err').textContent="Entre ton nom.";
+  if(!/^\+?\d{8,15}$/.test(phone))return $('err').textContent="Entre un numéro de téléphone valide.";
+  $('go').disabled=true;
+  const ref='GS-'+Date.now().toString(36).toUpperCase().slice(-6);
+  if(db){
+    try{await fs.addDoc(fs.collection(db,'orders'),{ref,platform,playerId,amount,method,name,phone,status:'nouvelle',createdAt:fs.serverTimestamp()})}
+    catch(x){console.error(x)}
+  }
+  const msg=`Bonjour Gani Service, je veux recharger mon compte.\nRéf : ${ref}\nPlateforme : ${platform}\nID : ${playerId}\nMontant : ${amount.toLocaleString('fr-FR')} FCFA\nPaiement : ${method}\nNom : ${name}\nTél : ${phone}`;
+  const url=`https://wa.me/${WHATSAPP}?text=${encodeURIComponent(msg)}`;
+  $('main').innerHTML=`<div class="card done"><p>Commande enregistrée</p><b>${ref}</b><p class="sub" style="margin:0 auto">Envoie le message WhatsApp pour finaliser ta recharge.</p><a class="btn" href="${url}" target="_blank" rel="noopener">Ouvrir WhatsApp</a><p class="note"><a class="wa" href="">Faire une autre recharge</a></p></div>`;
+  window.open(url,'_blank','noopener');
+});
+</script></body></html>
